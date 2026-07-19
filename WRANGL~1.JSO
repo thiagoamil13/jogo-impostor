@@ -1,0 +1,26 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "jogo-impostor",
+  "main": "src/index.js",
+  "compatibility_date": "2025-05-05",
+
+  // Serve a pasta public/ (o jogo em si) direto da borda da Cloudflare.
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS"
+  },
+
+  // Cada sala do jogo é um Durable Object.
+  "durable_objects": {
+    "bindings": [
+      { "name": "ROOM", "class_name": "GameRoom" }
+    ]
+  },
+
+  // new_sqlite_classes é o que permite Durable Objects no plano gratuito.
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["GameRoom"] }
+  ],
+
+  "observability": { "enabled": true }
+}
