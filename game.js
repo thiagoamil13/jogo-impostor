@@ -51,6 +51,8 @@ export function dropPlayer(room, pid) {
     room.hostId = nxt ? nxt.id : null;
   }
   if (room.phase === "reveal") maybeLeaveReveal(room);
+  if (room.phase === "clues") maybeLeaveClues(room);
+  if (room.phase === "discuss") maybeLeaveDiscuss(room);
   if (room.phase === "vote") maybeTally(room);
 }
 
@@ -76,8 +78,21 @@ export function startRound(room) {
 }
 
 function toDiscuss(room) {
+  room.players.forEach(p => p.ready = false);   // recomeça: agora "pronto" = pronto para votar
   room.phase = "discuss";
   room.endsAt = room.cfg.secs ? Date.now() + room.cfg.secs * 1000 : 0;
+}
+
+function openVote(room) {
+  room.players.forEach(p => { p.vote = null; p.ready = false; });
+  room.phase = "vote";
+  room.endsAt = 0;
+}
+
+// Na discussão, quando todo mundo confirma, a votação abre sozinha.
+function maybeLeaveDiscuss(room) {
+  const a = alive(room);
+  if (a.length && a.every(p => p.ready)) openVote(room);
 }
 
 function maybeLeaveReveal(room) {
@@ -88,14 +103,10 @@ function maybeLeaveReveal(room) {
   }
 }
 
-function advanceClue(room) {
-  room.clueTurn++;
-  while (room.clueTurn < room.clueOrder.length) {
-    const p = P(room, room.clueOrder[room.clueTurn]);
-    if (p && p.connected && !p.clue) break;
-    room.clueTurn++;
-  }
-  if (room.clueTurn >= room.clueOrder.length) toDiscuss(room);
+// Todos escrevem ao mesmo tempo. Quando o último envia, as dicas aparecem para todos.
+function maybeLeaveClues(room) {
+  const a = alive(room);
+  if (a.length && a.every(p => p.clue)) toDiscuss(room);
 }
 
 function maybeTally(room, force = false) {
@@ -157,20 +168,29 @@ export function handle(room, pid, m) {
       startRound(room); break;
     }
     case "ready": {
-      if (room.phase !== "reveal") return no;
-      me.ready = true; maybeLeaveReveal(room); break;
+      if (room.phase === "reveal") { me.ready = true; maybeLeaveReveal(room); break; }
+      if (room.phase === "discuss") { me.ready = true; maybeLeaveDiscuss(room); break; }
+      return no;
+    }
+    case "unready": {
+      if (room.phase !== "discuss") return no;
+      me.ready = false; break;
     }
     case "clue": {
-      if (room.phase !== "clues" || room.clueOrder[room.clueTurn] !== pid) return no;
+      if (room.phase !== "clues") return no;
       const txt = clean(m.text, 20);
       if (!txt) return no;
-      me.clue = txt; advanceClue(room); break;
+      me.clue = txt;                 // dá pra trocar enquanto os outros ainda escrevem
+      maybeLeaveClues(room); break;
     }
-    case "skipClue": { if (!isHost || room.phase !== "clues") return no; advanceClue(room); break; }
+    case "skipClue": {               // host segue sem quem não escreveu
+      if (!isHost || room.phase !== "clues") return no;
+      if (!alive(room).some(p => p.clue)) return no;
+      toDiscuss(room); break;
+    }
     case "toVote": {
       if (!isHost || (room.phase !== "discuss" && room.phase !== "clues")) return no;
-      room.players.forEach(p => p.vote = null);
-      room.phase = "vote"; room.endsAt = 0; break;
+      openVote(room); break;
     }
     case "vote": {
       if (room.phase !== "vote") return no;
@@ -220,13 +240,16 @@ export function viewFor(room, pid) {
     cfg: room.cfg, cats: CATS, maxImp: maxImp(room), minPlayers: MIN_PLAYERS,
     players: room.players.map(p => ({
       id: p.id, name: p.name, score: p.score, connected: p.connected,
-      ready: p.ready, clue: p.clue || "", hasVoted: p.vote !== null && p.vote !== undefined,
+      ready: p.ready,
+      // durante a escrita, cada um só enxerga a própria dica
+      clue: (room.phase === "clues" && p.id !== pid) ? "" : (p.clue || ""),
+      hasClue: !!p.clue,
+      hasVoted: p.vote !== null && p.vote !== undefined,
       isImp: showAll ? room.impIds.includes(p.id) : undefined
     })),
     myWord: room.phase === "lobby" ? null : (room.words[pid] ?? null),
     myRole: room.phase === "lobby" ? null : (isImp ? "impostor" : "cidadao"),
     catName: room.phase === "lobby" ? "" : room.catName,
-    clueTurnId: room.phase === "clues" ? (room.clueOrder[room.clueTurn] || null) : null,
     endsAt: room.endsAt || 0,
     result: ["result", "guess", "final"].includes(room.phase) ? {
       tally: room.tally, accusedId: room.accusedId, caught: room.caught,

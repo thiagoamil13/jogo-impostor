@@ -304,34 +304,43 @@ function reveal() {
 
 /* ---- DICAS DIGITADAS ---- */
 function clues() {
-  const mine = S.clueTurnId === S.you.id;
-  const turnP = S.players.find(p => p.id === S.clueTurnId);
-  const given = S.players.filter(p => p.clue);
+  const vivos = S.players.filter(p => p.connected);
+  const enviaram = vivos.filter(p => p.hasClue).length;
+  const jaEnviei = !!S.you.clue;
   $.innerHTML = bar() + \`
-  <div class="card"><label>Dicas dadas</label>
-    \${given.length ? given.map(p => \`<div class="clue"><span>\${esc(p.name)}</span><b>\${esc(p.clue)}</b></div>\`).join("") : \`<p class="hint" style="margin:0">Ninguém falou ainda.</p>\`}
+  <div class="card big" style="padding:22px 18px">
+    <div class="tag">Categoria: \${esc(S.catName)}</div>
+    <h2>\${jaEnviei ? "Dica enviada" : "Escreva sua dica"}</h2>
+    \${jaEnviei
+      ? \`<div class="word" style="font-size:30px">\${esc(S.you.clue)}</div>
+         <p class="hint">\${enviaram}/\${vivos.length} já enviaram. As dicas aparecem quando o último mandar.</p>\`
+      : \`<p class="hint" style="margin-bottom:14px">Uma palavra só, ligada ao tema. Ninguém vê a sua antes de mandar a dele.</p>
+         <input id="cl" maxlength="20" placeholder="Sua dica" autocomplete="off">
+         <div style="height:12px"></div>
+         <button class="ok" id="sc">Enviar dica</button>\`}
   </div>
-  \${mine ? \`<div class="card big">
-      <h2>Sua vez</h2>
-      <p class="hint" style="margin-bottom:14px">Uma palavra só, ligada ao tema.</p>
-      <input id="cl" maxlength="20" placeholder="Sua dica" autocomplete="off">
-      <div style="height:12px"></div>
-      <button class="ok" id="sc">Enviar dica</button>
-    </div>\`
-      : \`<div class="card big"><div style="font-size:40px">💭</div>
-      <h2>Vez de \${esc(turnP ? turnP.name : "...")}</h2>
-      <p class="hint">Pensando numa dica boa.</p></div>\`}
-  \${S.you.isHost ? \`<button class="ghost" id="skip">Pular quem está demorando</button><div style="height:8px"></div><button class="ghost" id="tv">Ir direto pra votação</button>\` : ""}
-  <div class="card"><label>Sua palavra</label><div class="rowitem"><span class="nm">\${S.myWord === null ? '<b style="color:#ff4d6d">IMPOSTOR</b>' : esc(S.myWord)}</span><span class="pill">\${esc(S.catName)}</span></div></div>\`;
-  if (mine) {
-    const i = $.querySelector("#cl");
-    const go = () => { const v = i.value.trim(); if (!v) return toast("Escreva uma dica."); send({ t: "clue", text: v }); };
-    $.querySelector("#sc").onclick = go;
-    i.onkeydown = e => { if (e.key === "Enter") go(); };
-    setTimeout(() => i.focus(), 60);
+  \${jaEnviei ? \`<button class="ghost" id="tc">Trocar minha dica</button><div style="height:12px"></div>\` : ""}
+  <div class="card"><label>Quem já mandou (\${enviaram}/\${vivos.length})</label>
+    \${vivos.map(p => \`<div class="rowitem"><span class="nm">\${esc(p.name)}\${p.id === S.you.id ? " (você)" : ""}</span><span class="pill \${p.hasClue ? "y" : ""}">\${p.hasClue ? "enviou" : "escrevendo"}</span></div>\`).join("")}
+  </div>
+  <div class="card"><label>Sua palavra</label><div class="rowitem"><span class="nm">\${S.myWord === null ? '<b style="color:#ff4d6d">IMPOSTOR</b>' : esc(S.myWord)}</span><span class="pill">\${esc(S.catName)}</span></div></div>
+  \${S.you.isHost && enviaram ? \`<button class="ghost" id="skip">Seguir sem quem falta (host)</button>\` : ""}\`;
+
+  const campo = $.querySelector("#cl");
+  if (campo) {
+    const enviar = () => {
+      const v = campo.value.trim();
+      if (!v) return toast("Escreva uma dica.");
+      send({ t: "clue", text: v });
+    };
+    $.querySelector("#sc").onclick = enviar;
+    campo.onkeydown = e => { if (e.key === "Enter") enviar(); };
+    setTimeout(() => campo.focus(), 60);
   }
-  const sk = $.querySelector("#skip"); if (sk) sk.onclick = () => send({ t: "skipClue" });
-  const tv = $.querySelector("#tv"); if (tv) tv.onclick = () => send({ t: "toVote" });
+  const tc = $.querySelector("#tc");
+  if (tc) tc.onclick = () => { S.you.clue = ""; clues(); };
+  const sk = $.querySelector("#skip");
+  if (sk) sk.onclick = () => send({ t: "skipClue" });
 }
 
 /* ---- DISCUSSÃO ---- */
@@ -339,6 +348,8 @@ let tk = null;
 function discuss() {
   clearInterval(tk);
   const given = S.players.filter(p => p.clue);
+  const vivos = S.players.filter(p => p.connected);
+  const pr = vivos.filter(p => p.ready).length, tot = vivos.length;
   $.innerHTML = bar() + \`<div class="card big">
     <div class="tag">\${esc(S.catName)}</div>
     <h2>Hora de discutir</h2>
@@ -347,7 +358,14 @@ function discuss() {
   </div>
   \${given.length ? \`<div class="card"><label>Dicas</label>\${given.map(p => \`<div class="clue"><span>\${esc(p.name)}</span><b>\${esc(p.clue)}</b></div>\`).join("")}</div>\` : ""}
   <div class="card"><label>Sua palavra</label><div class="rowitem"><span class="nm">\${S.myWord === null ? '<b style="color:#ff4d6d">IMPOSTOR</b>' : esc(S.myWord)}</span><span class="pill">\${esc(S.catName)}</span></div></div>
-  \${S.you.isHost ? \`<button id="tv">🗳 Abrir votação</button>\` : \`<p class="hint" style="text-align:center">O host abre a votação quando vocês decidirem.</p>\`}\`;
+  <div class="card"><label>Prontos para votar (\${pr}/\${tot})</label>
+    \${vivos.map(p => \`<div class="rowitem"><span class="nm">\${esc(p.name)}\${p.id === S.you.id ? " (você)" : ""}</span><span class="pill \${p.ready ? "y" : ""}">\${p.ready ? "pronto" : "discutindo"}</span></div>\`).join("")}
+    <p class="hint">A votação abre sozinha quando todos confirmarem.</p>
+  </div>
+  \${S.you.ready
+      ? \`<button class="ghost" id="un">Espera, ainda quero discutir</button>\`
+      : \`<button class="ok" id="rd">✋ Estou pronto para votar</button>\`}
+  \${S.you.isHost ? \`<div style="height:8px"></div><button class="ghost" id="tv">Abrir votação agora (host)</button>\` : ""}\`;
   if (S.endsAt) {
     const draw = () => {
       const el = $.querySelector("#tm"); if (!el) return clearInterval(tk);
@@ -359,6 +377,8 @@ function discuss() {
     draw(); tk = setInterval(draw, 500);
   }
   const tv = $.querySelector("#tv"); if (tv) tv.onclick = () => send({ t: "toVote" });
+  const rd = $.querySelector("#rd"); if (rd) rd.onclick = () => send({ t: "ready" });
+  const un = $.querySelector("#un"); if (un) un.onclick = () => send({ t: "unready" });
 }
 
 /* ---- VOTAÇÃO ---- */
@@ -371,7 +391,7 @@ function vote() {
     $.innerHTML = bar() + \`<div class="card big"><div style="font-size:42px">🗳</div>
       <h2>Voto registrado</h2><p class="hint">\${done}/\${tot} já votaram.</p>
       <div style="height:14px"></div><button class="ghost" id="un">Mudar meu voto</button>
-      \${S.you.isHost && done < tot ? \`<div style="height:8px"></div><button class="ghost" id="ft">Apurar sem quem falta</button>\` : ""}</div>
+      \${S.you.isHost && done < tot ? \`<div style="height:8px"></div><button class="ghost" id="ft">Apurar agora</button>\` : ""}</div>
       <div class="card">\${S.players.filter(p => p.connected).map(p => \`<div class="rowitem"><span class="nm">\${esc(p.name)}</span><span class="pill \${p.hasVoted ? "y" : ""}">\${p.hasVoted ? "votou" : "pensando"}</span></div>\`).join("")}</div>\`;
     $.querySelector("#un").onclick = () => send({ t: "unvote" });
     const ft = $.querySelector("#ft"); if (ft) ft.onclick = () => send({ t: "forceTally" });
