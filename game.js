@@ -26,15 +26,31 @@ export const P = (room, id) => room.players.find(p => p.id === id) || null;
 const alive = room => room.players.filter(p => p.connected);
 export const maxImp = room => Math.max(1, Math.floor((room.players.length - 1) / 2));
 
+// O comando tem que estar sempre com alguém presente. Se o host caiu (ou a sala
+// esvaziou e alguém voltou), passa para o primeiro conectado.
+export function ensureHost(room) {
+  const dono = P(room, room.hostId);
+  if (dono && dono.connected) return false;
+  const novo = alive(room)[0] || null;
+  const antes = room.hostId;
+  room.hostId = novo ? novo.id : null;
+  return room.hostId !== antes;
+}
+
 /* ---------- entrada e saída de jogadores ---------- */
 export function addPlayer(room, name, pid) {
   const prev = pid ? P(room, pid) : null;
-  if (prev) { prev.connected = true; if (name) prev.name = clean(name, 14); return { player: prev, rejoined: true }; }
+  if (prev) {
+    prev.connected = true;
+    if (name) prev.name = clean(name, 14);
+    ensureHost(room);                 // host fantasma não pode travar quem voltou
+    return { player: prev, rejoined: true };
+  }
   if (room.phase !== "lobby") return { error: "A partida já começou. Espere a próxima rodada." };
   if (room.players.length >= MAX_PLAYERS) return { error: "Sala cheia (máx. " + MAX_PLAYERS + ")." };
   const p = { id: uid(), name: clean(name, 14) || "Jogador", score: 0, connected: true, ready: false, clue: "", vote: null };
   room.players.push(p);
-  if (!room.hostId) room.hostId = p.id;
+  ensureHost(room);
   return { player: p, rejoined: false };
 }
 
@@ -46,10 +62,7 @@ export function dropPlayer(room, pid) {
     const i = room.players.indexOf(p);
     if (i >= 0) room.players.splice(i, 1);
   }
-  if (room.hostId === pid) {
-    const nxt = alive(room)[0] || room.players[0];
-    room.hostId = nxt ? nxt.id : null;
-  }
+  ensureHost(room);
   if (room.phase === "reveal") maybeLeaveReveal(room);
   if (room.phase === "clues") maybeLeaveClues(room);
   if (room.phase === "discuss") maybeLeaveDiscuss(room);

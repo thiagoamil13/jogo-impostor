@@ -55,6 +55,7 @@ input:focus{border-color:#7c4dff}
 .err{position:fixed;left:50%;transform:translateX(-50%);bottom:22px;background:#e0405e;color:#fff;padding:13px 18px;border-radius:12px;font-size:14px;font-weight:600;max-width:90%;z-index:9;box-shadow:0 8px 24px rgba(0,0,0,.4)}
 .bar{position:sticky;top:0;background:#0e0b1a;padding:8px 0 10px;display:flex;justify-content:space-between;align-items:center;font-size:13px;color:#9d93bd;z-index:5}
 .bar b{color:#ffd76e;letter-spacing:3px}
+.bar .exit{width:auto;flex:none;padding:6px 12px;font-size:12px;font-weight:700;background:#241d40;color:#8d84ad;border:1px solid #3a3162;border-radius:999px;margin-left:10px}
 .off{opacity:.45}
 .rules{font-size:14px;color:#b3a9d6;line-height:1.6;padding-left:18px;margin:0}
 .rules li{margin-bottom:6px}
@@ -102,8 +103,24 @@ function rejoin() {
 }
 setInterval(() => send({ t: "ping" }), 25000);
 
+function sairDaSala(semPerguntar) {
+  if (!semPerguntar && !confirm("Sair da sala? Você pode voltar depois pelo mesmo código.")) return;
+  LS.set("imp_room", "");
+  S = null;
+  try { ws.close(); } catch { }
+  ws = null;
+  location.hash = "";
+  render();
+}
+
 /* ================= TELAS ================= */
 function render() {
+  desenhaTela();
+  const lt = $.querySelector("#leaveTop");
+  if (lt) lt.onclick = () => sairDaSala(false);
+}
+
+function desenhaTela() {
   if (!S) return home();
   const ph = S.phase;
   if (ph === "lobby") return lobby();
@@ -117,7 +134,13 @@ function render() {
 }
 
 function bar() {
-  return \`<div class="bar"><span>Sala <b>\${esc(S.code)}</b></span><span>\${S.round ? "Rodada " + S.round + " · " : ""}\${S.players.filter(p => p.connected).length}/\${S.players.length} online</span></div>\`;
+  return \`<div class="bar">
+    <span>Sala <b>\${esc(S.code)}</b></span>
+    <span style="display:flex;align-items:center">
+      \${S.round ? "Rodada " + S.round + " · " : ""}\${S.players.filter(p => p.connected).length}/\${S.players.length} online
+      <button class="exit" id="leaveTop">sair</button>
+    </span>
+  </div>\`;
 }
 
 /* ---- HOME ---- */
@@ -212,7 +235,7 @@ function lobby() {
   };
   $.querySelectorAll("[data-kick]").forEach(b => b.onclick = () => send({ t: "kick", id: b.dataset.kick }));
   const st = $.querySelector("#start"); if (st) st.onclick = () => send({ t: "start" });
-  $.querySelector("#leave").onclick = () => { LS.set("imp_room", ""); S = null; try { ws.close() } catch { }; ws = null; location.hash = ""; render(); };
+  $.querySelector("#leave").onclick = () => sairDaSala(true);
   if (h) wireCfg();
 }
 function hostId() { return S.hostId; }

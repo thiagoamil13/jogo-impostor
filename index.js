@@ -6,7 +6,15 @@ import { HTML } from "./html.js";
 
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const rid = n => Array.from({ length: n }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join("");
-const json = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { "content-type": "application/json" } });
+const json = (o, status = 200) => new Response(JSON.stringify(o), {
+  status,
+  headers: {
+    "content-type": "application/json",
+    // sorteio de código nunca pode vir de cache — nem da borda, nem do navegador
+    "cache-control": "no-store, no-cache, must-revalidate",
+    "pragma": "no-cache"
+  }
+});
 
 export default {
   async fetch(req, env) {
@@ -16,6 +24,7 @@ export default {
 
     // Sorteia um código livre para uma sala nova.
     if (url.pathname === "/api/new") {
+      if (req.method !== "POST") return json({ error: "use POST" }, 405);
       for (let i = 0; i < 6; i++) {
         const code = rid(4);
         const stub = env.ROOM.get(env.ROOM.idFromName(code));
