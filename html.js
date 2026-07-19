@@ -255,6 +255,17 @@ body.desk #pTurno .dicebox{
 body.desk #pTurno .dicebox .dicelabel{color:#6b6350;font-size:11px;letter-spacing:2.4px}
 body.desk .top .btn{min-height:36px;font-size:11.5px;padding:0 12px;line-height:1.15;flex:0 0 auto}
 
+/* entrada e lobby no computador: sem a moldura de celular, com o cartão
+   maior e o logo do tamanho da tela */
+body.desk #gate{gap:20px;padding:32px}
+body.desk #gate .logoBig{font-size:78px;letter-spacing:-5px}
+body.desk #gate .sub{font-size:13px;letter-spacing:4px}
+body.desk .card{max-width:520px;padding:22px 24px;border-radius:6px;box-shadow:0 0 0 4px var(--gold),0 22px 60px #000a}
+body.desk .card h1{font-size:25px}
+body.desk .card p{font-size:14px}
+body.desk .codeBig{font-size:46px;letter-spacing:12px}
+body.desk .lobbyRow{font-size:15px;padding:10px 12px}
+
 @media(min-width:900px){
   body:not(.desk){max-width:560px;margin:0 auto;border-left:1px solid #ffffff14;border-right:1px solid #ffffff14}
   .overlay{align-items:center;justify-content:center;padding:16px}
@@ -501,9 +512,7 @@ function showGame() {
   ['topBar', 'stage', 'actionBar', 'tabbar'].forEach(function (id) { $(id).classList.remove('hidden'); });
   if (!showGame.done) {
     showGame.done = true;
-    var salvo = lerModo();
-    // sem escolha gravada, decide pela largura da janela
-    setModo(salvo ? salvo === 'desk' : window.innerWidth >= 1000, false);
+    requestAnimationFrame(function () { fit(); centerOnActive(true); });
   }
 }
 
@@ -1141,6 +1150,14 @@ var HELP_TABELAS = ${JSON.stringify(`<b>Bolsa de Valores</b> (investimento entra
 <tr><th>Paga</th><td>40/20/10</td><td>20/10/5</td><td>12/7/4</td><td>10/5/3</td><td>7/4/2</td><td>6/3/1</td></tr></table>
 <b>Grande Prêmio:</b> dobradinha $100 · soma par $20 · ímpar $5.<br>
 <b>Impostos:</b> dados × 1 (baixa), × 10 (média), × 100 (alta).`)};
+
+/* A escolha da versão vale desde a tela de entrada, não só depois de sentar
+   à mesa — senão o cartão de entrada fica espremido numa faixa de celular
+   no meio do monitor, com a moldura sobrando dos lados. */
+(function iniciaModo() {
+  var salvo = lerModo();
+  setModo(salvo ? salvo === 'desk' : detectaDesk(), false);
+})();
 
 document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
 document.addEventListener('dblclick', function (e) { e.preventDefault(); });
