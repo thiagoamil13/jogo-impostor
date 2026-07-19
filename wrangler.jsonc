@@ -1,21 +1,19 @@
 {
-  // STATUS — O Jogo da Ascensão Social, online
-  "$schema": "node_modules/wrangler/config-schema.json",
-  // precisa bater com o nome do projeto na Cloudflare, senão o build avisa
-  // e a Cloudflare abre um pull request só para corrigir isto
-  "name": "statusonline",
+  "name": "jogo-impostor",
   "main": "index.js",
-  "compatibility_date": "2025-05-01",
-  "observability": { "enabled": true },
+  "compatibility_date": "2025-05-05",
 
+  // Cada sala do jogo é um Durable Object.
   "durable_objects": {
     "bindings": [
-      { "name": "GAME_ROOM", "class_name": "GameRoom" }
+      { "name": "ROOM", "class_name": "GameRoom" }
     ]
   },
 
-  // SQLite: é a única classe de Durable Object liberada no plano gratuito
+  // new_sqlite_classes é o que permite Durable Objects no plano gratuito.
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["GameRoom"] }
-  ]
+  ],
+
+  "observability": { "enabled": true }
 }
